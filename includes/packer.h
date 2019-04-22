@@ -6,7 +6,7 @@
 /*   By: ddinaut <ddinaut.student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2019/01/04 11:15:26 by ddinaut           #+#    #+#             */
-/*   Updated: 2019/01/20 21:11:05 by ddinaut          ###   ########.fr       */
+/*   Updated: 2019/04/22 16:28:53 by ddinaut          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -21,6 +21,7 @@
 # include <sys/types.h>
 # include <unistd.h>
 # include <elf.h>
+# include <stdbool.h>
 
 /*
 ** DEFINE
@@ -29,73 +30,64 @@
 # define SUCCESS 0
 # define ERROR -1
 
-# define ENABLED 0
-# define DISABLED -1
-
-# define SHELLSIZE		101
-# define SHELLSIZE_32	48
-# define PAGESIZE		4096
-# define OUTPUT_NAME	"woody"
-# define KEY_SIZE		16
-# define KEY_VALUES		"0123456789abcdef"
-
-# define SET_SIGNATURE	DISABLED
-# define SIGNATURE		0xbabababa
+# define OUTPUT_NAME		"woody"
+# define KEY_SIZE			8
+# define PAYLOAD_SIZE		374
+# define PAGESIZE			4096
+# define SIGNATURE			0x216948 // 'Hi!'
+# define ELF_MAGIC_NUMBER	1179403647
 
 /*
 ** STRUCTURES
 */
-
-typedef struct		s_packer
+typedef struct	s_packer
 {
-	int				fd;
-	off_t			size;
-	char			*map;
-	uint8_t			key[KEY_SIZE];
-}					t_packer;
+	int			fd;
+	size_t		size;
+	char		*map;
+	char		key[KEY_SIZE];
+}				t_packer;
 
-typedef struct		s_bdata
+typedef struct	s_segment
 {
-	uint64_t	p_size;
-	Elf64_Addr	p_vaddr;
 	Elf64_Off	p_offset;
+	Elf64_Addr	p_vaddr;
+	uint64_t	p_filesz;
+}				t_segment;
 
-	uint64_t	s_size;
-	Elf64_Addr	s_addr;
-	Elf64_Off	s_offset;
+typedef struct	s_section
+{
+	Elf64_Off	sh_offset;
+	Elf64_Addr	sh_addr;
+	uint64_t	sh_size;
+}				t_section;
 
+typedef struct	s_bdata
+{
+	Elf64_Ehdr	*header;
+	t_segment	segment;
+	t_section	section;
 	Elf64_Addr	original_entrypoint;
-	Elf64_Addr	payload_entrypoint;
-	size_t		payload_size;
-
-	/* old */
-	unsigned int	p_vaddr2;
-	unsigned int	end_of_text;
-	unsigned int	old_entry;
-}					t_bdata;
+}				t_bdata;
 
 /*
 ** FUNCTIONS
 */
 int				packer(int ac, char **av);
-int				infect_x32(t_packer *pack);
-int				infect_x64(t_packer *pack);
+bool			criteria(t_packer *pack, const char *filename);
+bool			infect_x64(t_packer *pack);
+void			create_infected(t_packer *pack, t_bdata *data);
 
-Elf32_Shdr		*next_section_x32(t_packer *pack, Elf32_Ehdr *e_hdr, size_t count);
+bool			modify_header(t_bdata *data);
 Elf64_Shdr		*next_section_x64(t_packer *pack, Elf64_Ehdr *e_hdr, size_t count);
-
-Elf32_Phdr		*next_segment_x32(t_packer *pack, Elf32_Ehdr *e_hdr, size_t count);
 Elf64_Phdr		*next_segment_x64(t_packer *pack, Elf64_Ehdr *e_hdr, size_t count);
-
-uint8_t			*get_shellcode_x64(uint8_t *dst, uint8_t *key, t_bdata bdata);
-uint8_t			*get_shellcode_x32(uint8_t *dst, t_bdata bdata);
-unsigned int    get_payload_size64(void);
+void			_rc4(unsigned char *key, size_t key_len, char *data, size_t data_len);
 
 /* lib */
 void			*ft_memcpy(void *dst, const void *src, size_t n);
 size_t			ft_strlen(const char *src);
-int				ft_isalnum(int c);
-int				generate_key(uint8_t *key, char **input, int ac);
-
+void			insert_signature(t_packer *pack);
+bool			generate_key(char *key);
+void			encrypt_data(char *addr, size_t const size, char const *key);
 
 #endif
